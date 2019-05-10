@@ -12,10 +12,10 @@ from termcolor import colored
 tflogger = tf.get_logger()
 tflogger.setLevel('ERROR')
 
-# this is important or rejection sample won't work
-# I set this here so that all random process keeps the same order but you can
-# also set it at rejection_resample function
-tf.random.set_seed(1341)
+# set seed so that the order is the same every time you run the program
+seed = 1341
+tf.random.set_seed(seed)
+np.random.seed(seed)
 
 def compute_distribution(dataset, epochs, batch_size):
     data_receives = []
@@ -55,19 +55,16 @@ def compute_distribution(dataset, epochs, batch_size):
         print(colored("Yes, order is preserved.", "green"))
 
 # generate data and distribution
-np_data = np.array([
-0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1,0,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,1,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1,0,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
-0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1,1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,1,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
-0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,1,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1])
-
+init_dist = [0.9, 0.1]
+num_per_class = np.random.multinomial(10000, init_dist)
+np_data = np.hstack((np.zeros(num_per_class[0], dtype=np.int32), np.ones(num_per_class[1], dtype=np.int32)))
+np.random.shuffle(np_data)
 batch_size = 40
 epochs = 1
 target_dist = np.array([0.5, 0.5], dtype=np.float32)
 number_of_positives = np.sum(np_data)
 number_of_negatives = np_data.shape[0] - number_of_positives
 number_of_examples = np_data.shape[0]
-init_dist = np.array([number_of_negatives / number_of_examples, number_of_positives / number_of_examples], dtype=np.float32)
 all_dataset = tf.data.Dataset.from_tensor_slices(np_data)
 
 
@@ -103,7 +100,7 @@ if __name__ == "__main__":
                 # so if you want to draw a sample at 60% chance, your tocken
                 # needs to be larger than (1 - 60%)
                 tocken = normal.sample()
-                return tf.cast(tocken > (1 - dist[sample]), tf.bool)
+                return tf.cast(tocken > (1 - dist[tf.cast(sample, tf.int32)]), tf.bool)
             return _filter
 
         # Undersampling the first class, so directly take exhausted class 1
