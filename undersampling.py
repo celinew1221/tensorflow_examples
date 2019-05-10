@@ -92,8 +92,9 @@ if __name__ == "__main__":
 
         # Method 2: dataset.filter based on distribution
         print(colored("Method 2: Filter based on uniform distribution", "green"))
-        def filter(dist):
+        def filter(dist, seed=seed):
             # create a uniform distribution
+            tf.random.set_seed(seed)
             normal = tfp.distributions.Uniform(low=0, high=1.0)
             def _filter(sample):
                 # explanation: uniform distribution has 60% chance larger than 0.4
