@@ -106,7 +106,8 @@ if __name__ == "__main__":
 
         # Undersampling the first class, so directly take exhausted class 1
         # and have d1/d0 chance to take class 0
-        dist = tf.constant([init_dist[1] / init_dist[0], 1], tf.float32)
+        drawing_prob = np.min(init_dist) / np.array(init_dist)
+        dist = tf.constant(drawing_prob, tf.float32)
         method2_dataset = all_dataset.filter(filter(dist))
         method2_dataset = method2_dataset.batch(batch_size)
         compute_distribution(method2_dataset, epochs, batch_size)
