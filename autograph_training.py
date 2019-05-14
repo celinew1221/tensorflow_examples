@@ -6,6 +6,7 @@ from tqdm import tqdm
 import numpy as np
 from time import perf_counter
 import sys
+import logging
 
 def get_uncompiled_model():
   inputs = keras.Input(shape=(784,), name='digits')
@@ -52,13 +53,13 @@ def train_step(model, optimizer, loss_fn, x_batch_train, y_batch_train):
 
 @tf.function
 def train(model, optimizer, loss_fn):
-    for epoch in range(3):
+    for e in range(3):
       steps = 0
       for data in (train_dataset):
         x_batch_train, y_batch_train = data["x"], data["y"]
         loss_value = train_step(model, optimizer, loss_fn, x_batch_train, y_batch_train)
         if tf.equal(steps % 200, 0):
-            tf.print('Training loss (for one batch) at step', steps, float(loss_value))
+            tf.print('Training loss (for one batch) at step', steps, float(loss_value), output_stream="file://log.log")
         steps += 1
 
 s = perf_counter()
