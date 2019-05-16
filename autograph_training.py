@@ -39,7 +39,24 @@ y_train = y_train[:-10000]
 train_dataset = tf.data.Dataset.from_tensor_slices((x_train, y_train))
 train_dataset = train_dataset.shuffle(buffer_size=1024).batch(64)
 train_dataset = train_dataset.map(lambda x,y: {"x": x, "y":y})
-bar = Progbar(target=782, width=50)
+
+@tf.function
+def update_metrics_state(metric_list, y_batch, loss):
+    for metric in metric_list:
+        metric.update_state(y_batch, loss)
+
+
+@tf.function
+def reset_metrics(metric_list):
+    for metric in metric_list:
+        metric.reset_states()
+
+
+@tf.function
+def log_metrics(metric_list, step, prefix=""):
+    for metric in metric_list:
+        tf.summary.scalar("{}_{}".format(prefix, metric.name), metric.result(), step=step)
+
 
 @tf.function
 def train_step(model, optimizer, loss_fn, x_batch_train, y_batch_train):
@@ -48,20 +65,28 @@ def train_step(model, optimizer, loss_fn, x_batch_train, y_batch_train):
       loss_value = loss_fn(y_batch_train, logits)
     grads = tape.gradient(loss_value, model.trainable_variables)
     optimizer.apply_gradients(zip(grads, model.trainable_variables))
-    return loss_value
+    return loss_value, logits
 
 
 @tf.function
-def train(model, optimizer, loss_fn):
-    for e in range(3):
-      steps = 0
-      for data in (train_dataset):
-        x_batch_train, y_batch_train = data["x"], data["y"]
-        loss_value = train_step(model, optimizer, loss_fn, x_batch_train, y_batch_train)
-        if tf.equal(steps % 200, 0):
-            tf.print('Training loss (for one batch) at step', steps, float(loss_value), output_stream="file://log.log")
-        steps += 1
+def train(model, optimizer, loss_fn, metrics):
+    initial_step = 0
+    for e in range(30):
+        for data in (train_dataset):
+            x_batch_train, y_batch_train = data["x"], data["y"]
+            loss_value, logits = train_step(model, optimizer, loss_fn, x_batch_train, y_batch_train)
+            update_metrics_state(metrics, y_batch_train, logits)
+            if tf.equal((optimizer.iterations - initial_step) % 200, 0):
+                tf.print('Epoch {} Training loss at step'.format(e), optimizer.iterations - initial_step, float(loss_value))
+            log_metrics(metrics, step=optimizer.iterations, prefix="batch")
+        initial_step = optimizer.iterations * 1
+        log_metrics(metrics, step=e, prefix="epoch")
+        reset_metrics(metrics)
+        tf.summary.text("Time Elapsed", "Last {}".format(perf_counter()-s), step=e, description="time")
 
 s = perf_counter()
-train(get_uncompiled_model(), keras.optimizers.RMSprop(learning_rate=1e-3), keras.losses.SparseCategoricalCrossentropy())
+summary = tf.summary.create_file_writer("./log")
+with summary.as_default():
+    metrics = [tf.metrics.SparseCategoricalCrossentropy(name="loss")]
+    train(get_uncompiled_model(), keras.optimizers.RMSprop(learning_rate=1e-3), keras.losses.SparseCategoricalCrossentropy(), metrics)
 print(perf_counter() - s)
